@@ -26,6 +26,11 @@
   window.activeLineRoutes = window.activeLineRoutes || new Set();
   window.routingMode = window.routingMode || "fastest";
   window.FareModel = window.FareModel || null;
+  window.getWalkingThreshold =
+    window.getWalkingThreshold ||
+    function () {
+      return window.routingMode === "eco-friendly" ? 2000 : 300;
+    };
 
   function init() {
     console.log("[Main] Initializing KL Transportation System");
