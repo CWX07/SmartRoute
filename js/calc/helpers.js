@@ -2,6 +2,15 @@
 // Responsibilities: helper utilities for calc-unified (rounding, lookup, transfer fees, distances).
 (function () {
   var C = window.CalcConstants || {};
+  var ROUTE_ALIAS = (typeof window !== "undefined" && window.ROUTE_ID_ALIAS) || {
+    LRT: null, // will resolve based on more specific aliases below
+    "LRT KJ": "KJ",
+    "LRT KELANA JAYA": "KJ",
+    "LRT SP": "SP",
+    "LRT SRI PETALING": "SP",
+    "LRT AG": "AG",
+    "LRT AMPANG": "AG",
+  };
 
   function roundToTwo(n) {
     return Math.round(n * 100) / 100;
@@ -16,7 +25,25 @@
       return window.normalizeRouteId(routeId);
     }
     if (!routeId) return null;
-    return String(routeId).toUpperCase();
+    var up = String(routeId).trim().toUpperCase();
+    // direct alias map first
+    if (ROUTE_ALIAS[up]) return ROUTE_ALIAS[up];
+    // heuristic: if starts with LRT and has suffix
+    if (up.startsWith("LRT ")) {
+      var suffix = up.replace(/^LRT\s+/, "");
+      if (ROUTE_ALIAS["LRT " + suffix]) return ROUTE_ALIAS["LRT " + suffix];
+    }
+    return up;
+  }
+
+  function normalizeStationName(name) {
+    if (!name) return "";
+    return String(name)
+      .toUpperCase()
+      .replace(/'/g, "")
+      .replace(/-/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   function getRouteSpeed(routeId) {
@@ -45,14 +72,17 @@
     var normalized = normalizeRouteId(routeId);
     if (!normalized) return null;
 
+    var from = normalizeStationName(fromName);
+    var to = normalizeStationName(toName);
+
     var table =
       (window.FareLookup && window.FareLookup[normalized]) ||
       (window.FARE_TABLE && window.FARE_TABLE[normalized]) ||
       null;
     if (!table) return null;
 
-    var key = (fromName + "||" + toName).toUpperCase();
-    var rev = (toName + "||" + fromName).toUpperCase();
+    var key = from + "||" + to;
+    var rev = to + "||" + from;
 
     var fare = table[key];
     if (typeof fare === "number") return fare;
@@ -77,14 +107,16 @@
   function lookupCrossFareByStations(pairKey, fromName, toName) {
     if (!pairKey) return null;
     var upperKey = pairKey.toUpperCase();
+    var from = normalizeStationName(fromName);
+    var to = normalizeStationName(toName);
     var table =
       (window.FareLookupCross && window.FareLookupCross[upperKey]) ||
       (window.FARE_TABLE_CROSS && window.FARE_TABLE_CROSS[upperKey]) ||
       null;
     if (!table) return null;
 
-    var key = (fromName + "||" + toName).toUpperCase();
-    var rev = (toName + "||" + fromName).toUpperCase();
+    var key = from + "||" + to;
+    var rev = to + "||" + from;
 
     var fare = table[key];
     if (typeof fare === "number") return fare;
@@ -133,6 +165,7 @@
     roundToTwo: roundToTwo,
     roundToNearestTenth: roundToNearestTenth,
     normalizeRouteId: normalizeRouteId,
+    normalizeStationName: normalizeStationName,
     getRouteSpeed: getRouteSpeed,
     getTransferFee: getTransferFee,
     lookupFareByStations: lookupFareByStations,

@@ -29,7 +29,9 @@
     }
 
     var segmentFare = null;
-    if (safeMetrics && typeof safeMetrics.distanceKm === "number") {
+    if (safeMetrics && typeof safeMetrics.fare === "number") {
+      segmentFare = safeMetrics.fare; // use precomputed (cross-line aware) fare
+    } else if (safeMetrics && typeof safeMetrics.distanceKm === "number" && window.UnifiedCalc) {
       var normalizedRoute = window.normalizeRouteId(routeId);
       segmentFare = window.UnifiedCalc.transitFareFromDistance(
         safeMetrics.distanceKm,

@@ -3,16 +3,58 @@
 (function () {
   var helpers = window.RoutingHelpers || {};
   var fareLegKm = helpers.fareLegKm || function () { return 0; };
+  var calcHelpers = window.CalcHelpers || {};
+  var normalizeLinePairKey =
+    calcHelpers.normalizeLinePairKey ||
+    function (lines) {
+      if (!lines) return null;
+      if (typeof lines === "string") {
+        return lines;
+      }
+      var unique = [];
+      for (var i = 0; i < lines.length; i++) {
+        var id = (lines[i] || "").toUpperCase();
+        if (id && unique.indexOf(id) === -1) unique.push(id);
+      }
+      return unique.sort().join("|");
+    };
+  var lookupCrossFareByStations = calcHelpers.lookupCrossFareByStations || function () { return null; };
+  var fareFromCrossModel = calcHelpers.fareFromCrossModel || function () { return null; };
+  var normalizeStationName = calcHelpers.normalizeStationName || function (n) { return (n || "").toUpperCase(); };
 
   function findCheapestFarePath(start, dest) {
     var stationGraph = window.stationGraph;
     var stationIndex = window.stationIndex;
     var aliasMap = (typeof window !== "undefined" && window.ROUTE_ID_ALIAS) || {};
 
-    var fareFn =
-      window.UnifiedCalc && typeof window.UnifiedCalc.transitFareFromDistance === "function"
-        ? window.UnifiedCalc.transitFareFromDistance
-        : null;
+    function fareFn(distanceKm, lineId, fromName, toName, prevLineId) {
+      var normLine = normLineId(lineId);
+      var fare = null;
+
+      // Try cross-line fare if changing lines and we have a pair key
+      if (prevLineId && prevLineId !== normLine) {
+        var pairKey = normalizeLinePairKey([prevLineId, normLine]);
+        if (pairKey) {
+          var lookupFare = lookupCrossFareByStations(
+            pairKey,
+            (fromName || "").toUpperCase(),
+            (toName || "").toUpperCase()
+          );
+          if (typeof lookupFare === "number") {
+            fare = lookupFare;
+          } else {
+            fare = fareFromCrossModel(pairKey, distanceKm, 1);
+          }
+        }
+      }
+
+      // Fallback to per-line fare model
+      if (fare === null && window.UnifiedCalc && typeof window.UnifiedCalc.transitFareFromDistance === "function") {
+        fare = window.UnifiedCalc.transitFareFromDistance(distanceKm, normLine, fromName, toName);
+      }
+
+      return fare;
+    }
     if (!fareFn) {
       console.warn("[Routing] Fare function missing, falling back to distance");
       return null;
@@ -20,6 +62,9 @@
 
     function normLine(id) {
       return (aliasMap[id] || id || "").toUpperCase();
+    }
+    function normLineId(id) {
+      return normLine(id);
     }
 
     var pq = [];
@@ -93,13 +138,15 @@
             newSegDist,
             edgeLine,
             cur.segStartName || currentStation.name || currentStation.id || "",
-            neighbor.name || neighbor.id || ""
+            neighbor.name || neighbor.id || "",
+            cur.lineId
           );
           var oldSegFare = fareFn(
             cur.segDistKm,
             edgeLine,
             cur.segStartName || currentStation.name || currentStation.id || "",
-            currentStation.name || currentStation.id || ""
+            currentStation.name || currentStation.id || "",
+            cur.lineId
           );
           fareIncrement = newSegFare - oldSegFare;
           if (fareIncrement < 0 || !isFinite(fareIncrement)) fareIncrement = 0;
@@ -111,7 +158,8 @@
             edgeKm,
             edgeLine,
             currentStation.name || currentStation.id || "",
-            neighbor.name || neighbor.id || ""
+            neighbor.name || neighbor.id || "",
+            cur.lineId
           );
           fareIncrement = isFinite(newFare) ? newFare : 0;
           nextState.segDistKm = edgeKm;

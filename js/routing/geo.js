@@ -4,6 +4,40 @@
   var helpers = window.RoutingHelpers || {};
   var distance = helpers.distance || function () { return 0; };
 
+  function straightLineMeters(start, dest) {
+    if (
+      start &&
+      dest &&
+      typeof start.lat === "number" &&
+      typeof start.lng === "number" &&
+      typeof dest.lat === "number" &&
+      typeof dest.lng === "number"
+    ) {
+      return distance(start.lat, start.lng, dest.lat, dest.lng);
+    }
+    return 0;
+  }
+
+  function straightLineGeo(start, dest) {
+    if (
+      start &&
+      dest &&
+      typeof start.lat === "number" &&
+      typeof start.lng === "number" &&
+      typeof dest.lat === "number" &&
+      typeof dest.lng === "number"
+    ) {
+      return {
+        type: "LineString",
+        coordinates: [
+          [start.lng, start.lat],
+          [dest.lng, dest.lat],
+        ],
+      };
+    }
+    return null;
+  }
+
   function findNearestStation(lat, lng) {
     if (!window.stations || !window.stations.length) return null;
     var best = null;
@@ -72,6 +106,10 @@
         if (data.code !== "Ok" || !data.routes || !data.routes.length)
           throw new Error("No route found");
         return data.routes[0].geometry;
+      })
+      .catch(function (err) {
+        console.warn("[Geo] OSRM walking route failed; using straight-line fallback:", err.message || err);
+        return straightLineGeo(start, dest);
       });
   }
 
@@ -95,6 +133,10 @@
         if (data.code !== "Ok" || !data.routes || !data.routes.length)
           throw new Error("No route found");
         return data.routes[0].distance; // meters
+      })
+      .catch(function (err) {
+        console.warn("[Geo] OSRM walking distance failed; using straight-line fallback:", err.message || err);
+        return straightLineMeters(start, dest);
       });
   }
 
@@ -118,6 +160,10 @@
         if (data.code !== "Ok" || !data.routes || !data.routes.length)
           throw new Error("No route found");
         return data.routes[0].geometry;
+      })
+      .catch(function (err) {
+        console.warn("[Geo] OSRM driving route failed; using straight-line fallback:", err.message || err);
+        return straightLineGeo(start, dest);
       });
   }
 
@@ -141,6 +187,10 @@
         if (data.code !== "Ok" || !data.routes || !data.routes.length)
           throw new Error("No route found");
         return data.routes[0].distance; // meters
+      })
+      .catch(function (err) {
+        console.warn("[Geo] OSRM driving distance failed; using straight-line fallback:", err.message || err);
+        return straightLineMeters(start, dest);
       });
   }
 

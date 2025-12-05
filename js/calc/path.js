@@ -6,6 +6,7 @@
   var normalizeRouteId = helpers.normalizeRouteId || function (rid) { return rid ? String(rid).toUpperCase() : null; };
   var getTransferFee = helpers.getTransferFee || function () { return 0; };
   var legDistanceKm = helpers.legDistanceKm || function () { return 0; };
+  var normalizeStationName = helpers.normalizeStationName || function (n) { return (n || "").toUpperCase(); };
   var normalizeLinePairKey = helpers.normalizeLinePairKey || function () { return null; };
   var lookupCrossFareByStations = helpers.lookupCrossFareByStations || function () { return null; };
   var fareFromCrossModel = helpers.fareFromCrossModel || function () { return null; };
@@ -87,37 +88,72 @@
     var first = path[0];
     var last = path[path.length - 1];
 
-    var fare = null;
+    function fareForSegment(distKm, lineId, startName, endName, prevLineId) {
+      var normLine = normalizeRouteId(lineId);
+      var fareVal = null;
 
-    if (uniqueRoutes.length > 1) {
-      var pairKey = normalizeLinePairKey([uniqueRoutes[0], uniqueRoutes[uniqueRoutes.length - 1]]);
-      if (pairKey) {
-        var lookupFare = lookupCrossFareByStations(
-          pairKey,
-          (first.name || first.station_name || "").toUpperCase(),
-          (last.name || last.station_name || "").toUpperCase()
-        );
-        if (typeof lookupFare === "number") {
-          fare = lookupFare;
-        } else {
-          fare = fareFromCrossModel(pairKey, distanceKmVal, transferCount);
+      if (prevLineId && prevLineId !== normLine) {
+        var pairKey = normalizeLinePairKey([prevLineId, normLine]);
+        if (pairKey) {
+          var lookupFare = lookupCrossFareByStations(pairKey, startName, endName);
+          if (typeof lookupFare === "number") {
+            fareVal = lookupFare;
+          } else {
+            fareVal = fareFromCrossModel(pairKey, distKm, 1);
+          }
         }
       }
+
+      if (fareVal === null && fareCalc && typeof fareCalc.transitFareFromDistance === "function") {
+        fareVal = fareCalc.transitFareFromDistance(distKm, normLine, startName, endName);
+      }
+
+      return typeof fareVal === "number" && isFinite(fareVal) ? fareVal : 0;
     }
 
-    if (fare === null && fareCalc.transitFareFromDistance) {
-      fare = fareCalc.transitFareFromDistance(
-        distanceKmVal,
-        dominantRoute,
-        (first.name || first.station_name || "").toUpperCase(),
-        (last.name || last.station_name || "").toUpperCase()
+    // Fare: sum contiguous per-line segments + transfer fees (cross-line aware)
+    var totalFare = 0;
+    var segStartIdx = 0;
+    var segRoute = path[0].route_id;
+    var prevLineForCross = null;
+    var transferFees = 0;
+
+    function addSegmentFare(endIdx) {
+      if (endIdx <= segStartIdx) return;
+      var startSt = path[segStartIdx];
+      var endSt = path[endIdx];
+      var distKmSeg = 0;
+      for (var si = segStartIdx; si < endIdx; si++) {
+        distKmSeg += legDistanceKm(path[si], path[si + 1]);
+      }
+      var fareSeg = fareForSegment(
+        distKmSeg,
+        segRoute,
+        normalizeStationName(startSt.name || startSt.station_name || ""),
+        normalizeStationName(endSt.name || endSt.station_name || ""),
+        prevLineForCross
       );
+      totalFare += fareSeg;
     }
+
+    for (var si = 1; si < path.length; si++) {
+      var prevRoute = path[si - 1].route_id;
+      var currRoute = path[si].route_id;
+      if (currRoute !== prevRoute) {
+        addSegmentFare(si - 1);
+        transferFees += getTransferFee(prevRoute, currRoute);
+        prevLineForCross = normalizeRouteId(prevRoute);
+        segStartIdx = si - 1;
+        segRoute = currRoute;
+      }
+    }
+    addSegmentFare(path.length - 1);
+    totalFare += transferFees;
 
     return {
       distanceKm: distanceKmVal,
       timeMin: Math.round(totalMinutes),
-      fare: fare,
+      fare: roundToTwo(totalFare),
       stopCount: stopCount,
       routeId: dominantRoute,
       transferCount: transferCount,

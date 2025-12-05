@@ -289,5 +289,5 @@
     map.fitBounds(bounds, { padding: [40, 40] });
   };
 
-  console.log("[Route Display] Module initialized - using UnifiedCalc per-line fares");
+  console.log("[Route Display] Module initialized - using UnifiedCalc fares (per-line + cross-line)");
 })();

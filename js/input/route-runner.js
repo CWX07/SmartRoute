@@ -200,6 +200,19 @@
       var routeData =
         precomputedRouteData || window.UnifiedCalc.completeRoute(startWalkDist, path, destWalkDist, walkThreshold);
 
+      // Optional: get realistic driving baseline for CO2 comparison
+      try {
+        var driveMeters = await resolveDriveDistance(
+          { lat: startStation.lat, lng: startStation.lng },
+          { lat: destStation.lat, lng: destStation.lng }
+        );
+        if (driveMeters > 0) {
+          routeData.baselineDrivingKm = driveMeters / 1000;
+        }
+      } catch (e) {
+        // fallback handled in computeEmissions
+      }
+
       if (mode === "comfort") {
         await comfort.applyComfortAdjustments(routeData);
       }
