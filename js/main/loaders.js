@@ -153,10 +153,20 @@
 
         var routeGroups = {};
 
+        var aliasWarnings = new Set();
+
         data.forEach(function (station) {
           if (typeof station.lat !== "number" || typeof station.lng !== "number") return;
 
           var routeId = station.route_id || "OTHER";
+          if (typeof window.normalizeRouteId === "function") {
+            var normalized = window.normalizeRouteId(routeId) || routeId;
+            if (normalized !== routeId && !aliasWarnings.has(routeId)) {
+              console.warn("[Stations] Alias route id seen:", routeId, "→", normalized);
+              aliasWarnings.add(routeId);
+            }
+            routeId = normalized;
+          }
           if (!routeGroups[routeId]) routeGroups[routeId] = [];
           routeGroups[routeId].push(station);
 
@@ -170,14 +180,17 @@
             fillColor: color,
             fillOpacity: 0.6,
             weight: 2,
-          }).bindPopup(
+          })
+            .bindPopup(
             (station.name || station.id) +
               "<br>Crowd: " +
               ((crowdLevel || 0) * 100).toFixed(1) +
               "%" +
               "<br>Route: " +
               (station.route_id || "N/A")
-          );
+            );
+
+          marker._stationId = station.id;
 
           if (!window.stationMarkersByRoute[routeId]) {
             window.stationMarkersByRoute[routeId] = [];

@@ -1,4 +1,3 @@
 // fare-lookup.js
-// Responsibilities: expose server-loaded fare lookup table.
-
-export const FareLookup = window.FareLookup || {};
+// Responsibilities: expose server-loaded fare lookup table (non-module).
+window.FareLookup = window.FareLookup || {};

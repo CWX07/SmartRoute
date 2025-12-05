@@ -18,8 +18,8 @@
     ROUTE_TO_COLUMN: {
       AG: "rail_lrt_ampang",
       PH: "rail_lrt_ampang",
-      KKJ: "rail_lrt_kj",
       KJ: "rail_lrt_kj",
+      KKJ: "rail_lrt_kj",
       MR: "rail_monorail",
       MRT: "rail_mrt_kajang",
       PYL: "rail_mrt_pjy",

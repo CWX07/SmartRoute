@@ -5,6 +5,10 @@
 
   function setInfo(msg) {
     if (dom.infoEl) dom.infoEl.textContent = msg;
+    if (dom.infoEl) {
+      var isError = /error|fail/i.test(String(msg || ""));
+      dom.infoEl.classList.toggle("is-error", isError);
+    }
     console.log("[Input]", msg);
   }
 

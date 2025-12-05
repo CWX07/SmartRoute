@@ -21,9 +21,17 @@
     Object.keys(window.stationMarkersByRoute || {}).forEach(function (routeId) {
       var markers = window.stationMarkersByRoute[routeId];
       markers.forEach(function (marker) {
-        var station = window.stations.find(function (s) {
-          return s.route_id === routeId && s.lat === marker.getLatLng().lat;
-        });
+        var station = null;
+        if (marker._stationId) {
+          station = window.stations.find(function (s) {
+            return s.id === marker._stationId;
+          });
+        }
+        if (!station) {
+          station = window.stations.find(function (s) {
+            return s.route_id === routeId && s.lat === marker.getLatLng().lat;
+          });
+        }
 
         if (station) {
           var crowdLevel = station.crowd || 0;

@@ -13,10 +13,13 @@
     var aliasMap = (typeof window !== "undefined" && window.ROUTE_ID_ALIAS) || {};
     var aliasFrom = aliasMap[fromStation.route_id] || fromStation.route_id || null;
     var aliasTo = aliasMap[toStation.route_id] || toStation.route_id || null;
-    var shapeDistKm = getGTFSShapeDistance(
-      Object.assign({}, fromStation, { route_id: aliasFrom }),
-      Object.assign({}, toStation, { route_id: aliasTo })
-    );
+    var shapeFn = typeof window.getGTFSShapeDistance === "function" ? window.getGTFSShapeDistance : null;
+    var shapeDistKm = shapeFn
+      ? shapeFn(
+          Object.assign({}, fromStation, { route_id: aliasFrom }),
+          Object.assign({}, toStation, { route_id: aliasTo })
+        )
+      : null;
     var distKm;
 
     if (shapeDistKm !== null) {
@@ -208,7 +211,8 @@
       if (distanceKm === null) {
         var totalDistKm = 0;
         for (var j = 0; j < path.length - 1; j++) {
-          var d = getGTFSShapeDistance(path[j], path[j + 1]);
+          var dGetter = typeof window.getGTFSShapeDistance === "function" ? window.getGTFSShapeDistance : null;
+          var d = dGetter ? dGetter(path[j], path[j + 1]) : null;
           if (d === null) {
             d = distance(path[j].lat, path[j].lng, path[j + 1].lat, path[j + 1].lng) / 1000;
           }
@@ -218,11 +222,15 @@
       }
       console.log("[Routing] Shortest Route: " + distanceKm.toFixed(2) + "km, " + path.length + " stations");
     } else if (mode === "cheapest") {
-      var distKm = metrics ? metrics.distanceKm : null;
-      var rawRouteId = path[1].route_id || path[0].route_id || null;
-      var lineId = window.normalizeRouteId(rawRouteId);
-      var fare = UnifiedCalc.transitFareFromDistance(distKm, lineId, path[0].name, path[path.length - 1].name);
-      console.log("[Routing] Cheapest Route: " + path.length + " stations (RM " + fare.toFixed(2) + ")");
+      var distKm = metrics && typeof metrics.distanceKm === "number" ? metrics.distanceKm : null;
+      if (path.length > 1 && distKm !== null) {
+        var rawRouteId = path[1].route_id || path[0].route_id || null;
+        var lineId = window.normalizeRouteId(rawRouteId);
+        var fare = UnifiedCalc.transitFareFromDistance(distKm, lineId, path[0].name, path[path.length - 1].name);
+        console.log("[Routing] Cheapest Route: " + path.length + " stations (RM " + fare.toFixed(2) + ")");
+      } else {
+        console.log("[Routing] Cheapest Route: single-station path");
+      }
     } else if (mode === "eco-friendly") {
       console.log("[Routing] Eco-Friendly Route: Optimized for walking and minimal transit");
     }

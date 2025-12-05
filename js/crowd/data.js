@@ -15,6 +15,7 @@
   }
 
   function loadPassengerData() {
+    // Use backend proxy path (served from smartroute-server)
     var urlPath = "/data.gov.my/ridership-headline.json";
     var fetchFn =
       (typeof window !== "undefined" && window.fetchWithApiFallback) || fetch;

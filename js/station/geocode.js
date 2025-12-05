@@ -30,6 +30,10 @@
         "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" +
         encodeURIComponent(query);
 
+      if (typeof fetch === "function") {
+        console.warn("[Geocode] Nominatim call without explicit User-Agent; consider proxying if rate-limited.");
+      }
+
       fetch(url)
         .then(function (r) {
           return r.ok ? r.json() : null;
