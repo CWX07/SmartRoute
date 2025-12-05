@@ -1,63 +1,12 @@
 // crowd.js
-
+// Responsibilities: orchestrate crowd data load + hourly updates and station crowd fields.
 (function () {
+  var data = window.CrowdData || {};
+  var compute = window.CrowdCompute || {};
+  var constants = window.CROWD_CONSTANTS || {};
+
   var passengerData = null;
   var crowdUpdateInterval = null;
-
-  var ACTIVE_HOURS = 16;
-  var PEAK_HOURS = [
-    [8, 10],
-    [17, 19],
-  ];
-  var VISUAL_CAPACITY_FACTOR = 5;
-
-  var LINE_CAPACITY = {
-    rail_lrt_ampang: 5000,
-    rail_mrt_kajang: 8000,
-    rail_lrt_kj: 4000,
-    rail_monorail: 3000,
-    rail_mrt_pjy: 6000,
-  };
-
-  var ROUTE_TO_COLUMN = {
-    AG: "rail_lrt_ampang",
-    PH: "rail_lrt_ampang",
-    KKJ: "rail_lrt_kj",
-    MR: "rail_monorail",
-    MRT: "rail_mrt_kajang",
-    PYL: "rail_mrt_pjy",
-    BRT: null,
-  };
-
-  function calculateCrowd(station, hour) {
-    var column = ROUTE_TO_COLUMN[station.route_id];
-    if (!column || !passengerData) return station.crowd || 0;
-
-    var latestData = passengerData[passengerData.length - 1];
-    var dailyStr = latestData[column];
-    var daily = parseInt(dailyStr) || 0;
-    if (daily === 0) return 0;
-
-    var lineStations = window.stations.filter(function (s) {
-      return s.route_id === station.route_id;
-    });
-    var stationCount = lineStations.length || 1;
-
-    var hourly = daily / ACTIVE_HOURS / stationCount;
-
-    for (var i = 0; i < PEAK_HOURS.length; i++) {
-      var start = PEAK_HOURS[i][0];
-      var end = PEAK_HOURS[i][1];
-      if (hour >= start && hour <= end) {
-        hourly *= 1.5;
-        break;
-      }
-    }
-
-    var capacity = LINE_CAPACITY[column] || 500;
-    var crowd = Math.min(hourly / (capacity * VISUAL_CAPACITY_FACTOR), 1.0);
-    return Math.round(crowd * 1000) / 1000;
-  }
 
   function updateCrowdLevels() {
     if (!window.stations || !passengerData) return;
@@ -66,7 +15,7 @@
     var hour = now.getHours();
 
     window.stations.forEach(function (station) {
-      station.crowd = calculateCrowd(station, hour);
+      station.crowd = compute.calculateCrowd(station, hour, passengerData);
     });
 
     Object.keys(window.stationMarkersByRoute || {}).forEach(function (routeId) {
@@ -96,35 +45,6 @@
     });
   }
 
-  function loadPassengerData() {
-    return fetch("data.gov.my/ridership-headline.json")
-      .then(function (res) {
-        if (!res.ok) throw new Error("Ridership data not found");
-        return res.json();
-      })
-      .then(function (data) {
-        passengerData = data;
-        return true;
-      })
-      .catch(function () {
-        passengerData = generateMockData();
-        return true;
-      });
-  }
-
-  function generateMockData() {
-    return [
-      {
-        date: new Date().toISOString().split("T")[0],
-        rail_lrt_ampang: "50000",
-        rail_mrt_kajang: "80000",
-        rail_lrt_kj: "60000",
-        rail_monorail: "30000",
-        rail_mrt_pjy: "70000",
-      },
-    ];
-  }
-
   function startHourlyUpdates() {
     if (!passengerData) return;
     updateCrowdLevels();
@@ -137,6 +57,18 @@
       clearInterval(crowdUpdateInterval);
       crowdUpdateInterval = null;
     }
+  }
+
+  function loadPassengerData() {
+    if (!data || typeof data.loadPassengerData !== "function") {
+      console.error("[Crowd] CrowdData.loadPassengerData missing");
+      return Promise.resolve(false);
+    }
+
+    return data.loadPassengerData().then(function (loaded) {
+      passengerData = loaded;
+      return true;
+    });
   }
 
   window.Crowd = {
